@@ -561,11 +561,6 @@ static int child_fn(void *arg)
     if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
         perror("mount private");
 
-    if (chdir(cfg->rootfs) < 0) {
-        perror("chdir rootfs");
-        return 1;
-    }
-
     if (chroot(cfg->rootfs) < 0) {
         perror("chroot");
         return 1;
@@ -1133,7 +1128,28 @@ static int start_container(supervisor_ctx_t *ctx,
     pthread_mutex_unlock(&ctx->metadata_lock);
 
     if (pthread_create(&record->producer_thread, NULL, producer_thread_main, producer_arg) != 0) {
+        pthread_mutex_lock(&ctx->metadata_lock);
+        if (ctx->containers == record) {
+            ctx->containers = record->next;
+        } else {
+            container_record_t *cursor = ctx->containers;
+            while (cursor && cursor->next != record)
+                cursor = cursor->next;
+            if (cursor)
+                cursor->next = record->next;
+        }
+        pthread_mutex_unlock(&ctx->metadata_lock);
+
         kill(pid, SIGKILL);
+        waitpid(pid, NULL, 0);
+        close(pipefd[0]);
+        record->child_cfg = NULL;
+        record->child_stack = NULL;
+        pthread_cond_destroy(&record->state_cond);
+        free(cfg);
+        free(stack);
+        free(record);
+        free(producer_arg);
         snprintf(message, message_len, "failed to create producer thread");
         return -1;
     }
@@ -1236,8 +1252,10 @@ static int build_logs_output(supervisor_ctx_t *ctx, const char *container_id, ch
 
     pthread_mutex_lock(&ctx->metadata_lock);
     record = find_container_locked(ctx, container_id);
-    if (record)
+    if (record) {
         strncpy(log_path, record->log_path, sizeof(log_path) - 1);
+        log_path[sizeof(log_path) - 1] = '\0';
+    }
     pthread_mutex_unlock(&ctx->metadata_lock);
 
     if (!record) {
