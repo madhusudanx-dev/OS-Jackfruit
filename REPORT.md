@@ -16,6 +16,7 @@ This repository implements a lightweight Linux container runtime in C with:
 - `Makefile` at the repo root plus the required CI-safe `make -C boilerplate ci` path
 - Demo helper scripts in [`scripts/`](./scripts)
 - Test matrix in [`docs/TEST_CASES.md`](./docs/TEST_CASES.md)
+- Screenshot runbook in [`docs/DEMO_RUNBOOK.md`](./docs/DEMO_RUNBOOK.md)
 - Screenshot staging folder in [`docs/screenshots/`](./docs/screenshots)
 
 ## Implementation Highlights
@@ -79,6 +80,8 @@ This repository implements a lightweight Linux container runtime in C with:
 6. Trigger memory-limit events with `./scripts/demo_memory_limits.sh memdemo`
 7. Run `./scripts/demo_scheduler.sh`
 8. Stop containers, show cleanup, unload the module
+
+For the shortest path, `./scripts/run_full_demo.sh` automates most of this flow and saves text artifacts under `artifacts/`.
 
 ## Personalization Items Before Submission
 

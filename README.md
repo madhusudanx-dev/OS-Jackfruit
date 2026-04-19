@@ -29,11 +29,14 @@ The runtime supports:
 - [`boilerplate/`](./boilerplate): canonical implementation used by inherited GitHub Actions smoke checks
 - [`scripts/`](./scripts): helper scripts for rootfs setup and demo runs
 - [`docs/TEST_CASES.md`](./docs/TEST_CASES.md): test matrix and screenshot checklist
+- [`docs/DEMO_RUNBOOK.md`](./docs/DEMO_RUNBOOK.md): exact screenshot-by-screenshot demo instructions
 - [`REPORT.md`](./REPORT.md): expanded project report
 
 ## Build, Load, and Run Instructions
 
 These steps are intended for the required Ubuntu 22.04 or 24.04 VM with Secure Boot disabled.
+
+If you want the quickest honest finish, use [`docs/DEMO_RUNBOOK.md`](./docs/DEMO_RUNBOOK.md). It maps every grading screenshot to exact commands and filenames.
 
 ### 1. Install dependencies
 
@@ -62,6 +65,12 @@ chmod +x scripts/prepare_rootfs.sh
 ```
 
 This downloads Alpine minirootfs, prepares `rootfs-base/`, and creates writable copies `rootfs-alpha/` and `rootfs-beta/` with the workload binaries copied in.
+
+For a fuller demo setup, you can also prepare the memory-demo rootfs:
+
+```bash
+./scripts/prepare_rootfs.sh alpha beta memdemo
+```
 
 ### 4. Load the kernel module
 
@@ -125,6 +134,8 @@ sudo rmmod monitor
 ## Demo With Screenshots
 
 The assignment requires annotated screenshots for the following items. Store them in [`docs/screenshots/`](./docs/screenshots) using the filenames listed in [`docs/TEST_CASES.md`](./docs/TEST_CASES.md).
+
+The most reliable capture order is documented in [`docs/DEMO_RUNBOOK.md`](./docs/DEMO_RUNBOOK.md).
 
 ### 1. Multi-container supervision
 

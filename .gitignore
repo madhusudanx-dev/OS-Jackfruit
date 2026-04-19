@@ -28,6 +28,7 @@ rootfs-*/
 # Logs
 *.log
 logs/
+artifacts/
 
 # Runtime socket
 /tmp/mini_runtime.sock
