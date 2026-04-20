@@ -2,8 +2,8 @@
 
 ## Team Information
 
-- Team Member 1: `Madhusudan`
-- Team Member 2: `To be updated before final academic submission`
+- Team Member 1: `Madhusudan P` - `PES1UG24AM375`
+- Team Member 2: `Pranaav P` - `PES1UG24AM387`
 
 ## Project Overview
 
