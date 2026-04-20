@@ -2,122 +2,42 @@
 
 ## Team Information
 
-Replace this block before final submission:
-
-- Team Member 1: `YOUR NAME` - `YOUR SRN`
-- Team Member 2: `TEAMMATE NAME` - `TEAMMATE SRN`
+- Team Member 1: `Madhusudan`
+- Team Member 2: `To be updated before final academic submission`
 
 ## Project Overview
 
-This project implements a lightweight Linux container runtime in C with a long-running supervisor and a kernel-space memory monitor.
+This project implements a lightweight Linux container runtime in C with a long-running supervisor and a kernel-space memory monitor. The runtime supports multiple containers, process and filesystem isolation, per-container logging, a CLI-based supervisor control plane, and kernel-assisted memory monitoring.
 
-The runtime supports:
+## Repository Contents
 
-- Multiple concurrent containers under a single supervisor
-- PID, UTS, and mount namespace isolation
-- Per-container writable root filesystems derived from a common base image
-- A UNIX-domain-socket control plane for `start`, `run`, `ps`, `logs`, and `stop`
-- A bounded-buffer logging pipeline with producer/consumer synchronization
-- Kernel-enforced soft and hard memory limits through `/dev/container_monitor`
-- Scheduler experiments using CPU-bound and I/O-oriented workloads
+- [`engine.c`](./engine.c), [`monitor.c`](./monitor.c), [`monitor_ioctl.h`](./monitor_ioctl.h)
+- [`boilerplate/`](./boilerplate) with the full implementation and inherited CI-safe build path
+- [`Makefile`](./Makefile)
+- workload programs: [`cpu_hog.c`](./cpu_hog.c), [`memory_hog.c`](./memory_hog.c), [`io_pulse.c`](./io_pulse.c)
+- [`REPORT.md`](./REPORT.md)
+- screenshot evidence in [`docs/screenshots/`](./docs/screenshots)
 
-## Repository Layout
-
-- [`engine.c`](./engine.c): root-level wrapper so `make` works from the repository root
-- [`monitor.c`](./monitor.c): root-level wrapper for kernel module build
-- [`monitor_ioctl.h`](./monitor_ioctl.h): root-level shared ioctl header
-- [`boilerplate/`](./boilerplate): canonical implementation used by inherited GitHub Actions smoke checks
-- [`scripts/`](./scripts): helper scripts for rootfs setup and demo runs
-- [`docs/TEST_CASES.md`](./docs/TEST_CASES.md): test matrix and screenshot checklist
-- [`docs/DEMO_RUNBOOK.md`](./docs/DEMO_RUNBOOK.md): exact screenshot-by-screenshot demo instructions
-- [`REPORT.md`](./REPORT.md): expanded project report
-
-## Build, Load, and Run Instructions
-
-These steps are intended for the required Ubuntu 22.04 or 24.04 VM with Secure Boot disabled.
-
-If you want the quickest honest finish, use [`docs/DEMO_RUNBOOK.md`](./docs/DEMO_RUNBOOK.md). It maps every grading screenshot to exact commands and filenames.
-
-### 1. Install dependencies
-
-```bash
-sudo apt update
-sudo apt install -y build-essential linux-headers-$(uname -r) wget
-```
-
-### 2. Build the project
+## Build, Load, and Run
 
 ```bash
 make
+sudo insmod monitor.ko
+ls -l /dev/container_monitor
+sudo ./engine supervisor ./rootfs-base
+sudo ./engine start alpha ./rootfs-alpha /cpu_hog
+sudo ./engine start beta ./rootfs-beta /cpu_hog
+sudo ./engine ps
+sudo ./engine logs alpha
+sudo ./engine stop alpha
+sudo ./engine stop beta
+sudo rmmod monitor
 ```
 
-The inherited CI-safe smoke path remains available:
+CI-safe build:
 
 ```bash
 make -C boilerplate ci
-```
-
-### 3. Prepare the root filesystem
-
-```bash
-chmod +x scripts/prepare_rootfs.sh
-./scripts/prepare_rootfs.sh alpha beta
-```
-
-This downloads Alpine minirootfs, prepares `rootfs-base/`, and creates writable copies `rootfs-alpha/` and `rootfs-beta/` with the workload binaries copied in.
-
-For a fuller demo setup, you can also prepare the memory-demo rootfs:
-
-```bash
-./scripts/prepare_rootfs.sh alpha beta memdemo
-```
-
-### 4. Load the kernel module
-
-```bash
-sudo insmod monitor.ko
-ls -l /dev/container_monitor
-```
-
-### 5. Start the supervisor
-
-```bash
-sudo ./engine supervisor ./rootfs-base
-```
-
-Keep this terminal open. It will show producer and consumer activity for the logging pipeline.
-
-### 6. Launch containers from another terminal
-
-```bash
-sudo ./engine start alpha ./rootfs-alpha /bin/sh --soft-mib 48 --hard-mib 80
-sudo ./engine start beta ./rootfs-beta /bin/sh --soft-mib 64 --hard-mib 96
-```
-
-### 7. Inspect state and logs
-
-```bash
-sudo ./engine ps
-sudo ./engine logs alpha
-```
-
-### 8. Run workload commands
-
-Examples:
-
-```bash
-sudo ./engine run memdemo ./rootfs-alpha "/memory_hog 8 400" --soft-mib 16 --hard-mib 32
-sudo ./engine run cpudemo ./rootfs-beta "/cpu_hog 10" --nice 5
-```
-
-### 9. Stop containers and clean up
-
-```bash
-sudo ./engine stop alpha
-sudo ./engine stop beta
-./scripts/demo_cleanup.sh
-sudo dmesg | tail -n 20
-sudo rmmod monitor
 ```
 
 ## CLI Reference
@@ -131,140 +51,104 @@ sudo rmmod monitor
 ./engine stop <id>
 ```
 
-## Demo With Screenshots
+## Demo Screenshots
 
-The assignment requires annotated screenshots for the following items. Store them in [`docs/screenshots/`](./docs/screenshots) using the filenames listed in [`docs/TEST_CASES.md`](./docs/TEST_CASES.md).
+### 1. Monitor device creation
 
-The most reliable capture order is documented in [`docs/DEMO_RUNBOOK.md`](./docs/DEMO_RUNBOOK.md).
+The kernel module loads successfully and exposes `/dev/container_monitor`.
 
-### 1. Multi-container supervision
+![Monitor device creation](docs/screenshots/01-monitor-device.jpeg)
 
-Capture two or more live containers managed by one supervisor.
+### 2. Supervisor startup
 
-Suggested command:
+The long-running supervisor starts successfully and binds the runtime control socket.
 
-```bash
-sudo ./engine ps
-```
+![Supervisor startup](docs/screenshots/02-supervisor-start.jpeg)
 
-Caption to use: `Two isolated containers are running concurrently under one long-lived supervisor.`
+### 3. Concurrent container launch
 
-### 2. Metadata tracking
+Two containers are started under the same supervisor process.
 
-Capture the `ps` table showing container IDs, host PIDs, states, start times, memory limits, reasons, and log paths.
+![Concurrent container launch](docs/screenshots/03-container-start.jpeg)
 
-### 3. Bounded-buffer logging
+### 4. Metadata tracking
 
-Capture:
+The `ps` command shows tracked container metadata from the supervisor.
 
-- The supervisor terminal showing `[producer]` and `[logger]` activity
-- The result of `sudo ./engine logs <id>` showing persisted output
+![Metadata tracking](docs/screenshots/04-ps-metadata.jpeg)
 
-### 4. CLI and IPC
+### 5. Logging output
 
-Capture a client command from a second terminal and the supervisor response path through the UNIX socket interface.
+Per-container logs are persisted and can be retrieved using `engine logs`.
 
-### 5. Soft-limit warning
+![Container log output](docs/screenshots/05-logs-alpha.jpeg)
 
-Run:
+### 6. Controlled stop path
 
-```bash
-./scripts/demo_memory_limits.sh memdemo
-```
+The supervisor accepts stop commands and cleanly terminates the tracked containers.
 
-Capture the `dmesg` line showing the soft-limit warning before the kill event.
+![Stopping containers](docs/screenshots/06-stop-containers.jpeg)
 
-### 6. Hard-limit enforcement
+### 7. No lingering workload processes
 
-Capture the follow-up `dmesg` line showing the hard-limit kill plus `sudo ./engine ps` showing the final `hard_limit_killed` reason.
+After cleanup, the host no longer has active `cpu_hog` workload processes.
 
-### 7. Scheduling experiment
+![No lingering workload processes](docs/screenshots/07-no-running-workloads.jpeg)
 
-Run:
+### 8. Module unload and filesystem cleanup
 
-```bash
-./scripts/demo_scheduler.sh
-```
+Mounted container filesystems are cleaned up and the monitor module is unloaded successfully.
 
-Capture the two concurrent `run` clients and the timing difference between different `nice` values.
-
-### 8. Clean teardown
-
-Capture:
-
-- `sudo ./engine stop <id>`
-- `./scripts/demo_cleanup.sh`
-- `sudo rmmod monitor`
-
-The screenshot should show there are no lingering container processes or zombies.
+![Module unload and cleanup](docs/screenshots/08-module-unload-cleanup.jpeg)
 
 ## Design Decisions and Tradeoffs
 
-### Namespace Isolation
+### Namespace isolation
 
-- Choice: `clone()` with new PID, UTS, and mount namespaces, followed by `chroot()` and an in-container `/proc` mount.
-- Tradeoff: `chroot()` is easier to reason about than `pivot_root()`, but it is less airtight against escape paths if the surrounding setup is weakened.
-- Justification: It keeps the implementation compact while still exercising the kernel mechanisms the assignment targets.
+- Choice: `clone()` with PID, UTS, and mount namespaces plus `chroot()` for the container root filesystem.
+- Tradeoff: `chroot()` is simpler than `pivot_root()`, but less strict if surrounding mount setup is weakened.
+- Justification: it delivers the required isolation behavior with a compact and understandable implementation.
 
-### Supervisor Architecture
+### Supervisor architecture
 
-- Choice: one persistent supervisor process owns metadata, logging, signal handling, and kernel monitor registration.
-- Tradeoff: centralization simplifies lifecycle tracking, but it means the supervisor becomes the main coordination point for all containers.
-- Justification: this is the cleanest way to guarantee correct reaping, shared logging, and consistent state transitions.
+- Choice: one long-running parent supervisor owns lifecycle, state, logging, and control-plane coordination.
+- Tradeoff: centralization simplifies correctness but makes the supervisor the coordination hub for all runtime actions.
+- Justification: it is the cleanest design for correct reaping, metadata tracking, and signal handling.
 
-### IPC and Logging
+### IPC and logging
 
-- Choice: UNIX domain socket for CLI control-plane IPC, and anonymous pipes for container stdout/stderr.
-- Tradeoff: two IPC paths mean more moving pieces, but each mechanism is specialized for its job.
-- Justification: separating command/control from log transport makes the design easier to debug and easier to explain.
+- Choice: UNIX domain socket for CLI commands and anonymous pipes for container stdout/stderr.
+- Tradeoff: using two IPC mechanisms adds implementation complexity, but each mechanism matches its workload well.
+- Justification: control messages stay structured and request/response oriented, while logs remain stream based and efficient.
 
-### Kernel Monitor
+### Kernel monitor
 
-- Choice: a timer-driven kernel module with a mutex-protected linked list of monitored PIDs.
-- Tradeoff: periodic polling is simpler than event-driven accounting, but it only observes memory at the sampling interval.
-- Justification: it is straightforward, safe for the linked-list manipulation paths, and matches the assignment’s requirement to explain soft and hard enforcement behavior clearly.
-
-### Scheduler Experiments
-
-- Choice: compare concurrent CPU-bound containers with different `nice` values and optionally compare CPU-bound versus I/O-oriented workloads.
-- Tradeoff: experiments stay simple and reproducible, but they do not cover every scheduler knob.
-- Justification: the chosen workloads make fairness, responsiveness, and throughput differences visible with minimal setup overhead.
+- Choice: timer-driven monitoring with a mutex-protected kernel linked list of registered container PIDs.
+- Tradeoff: polling is simpler than fully event-driven accounting, but checks happen at sampling intervals.
+- Justification: it provides a robust soft-limit warning path and a hard-limit enforcement path with straightforward cleanup.
 
 ## Engineering Analysis
 
-### 1. Isolation Mechanisms
+### 1. Isolation mechanisms
 
-Container isolation here comes from kernel namespaces plus filesystem redirection. `CLONE_NEWPID` gives the child a separate PID namespace so processes see a container-local process tree. `CLONE_NEWUTS` lets the runtime assign a container-specific hostname. `CLONE_NEWNS` gives the child an independent mount table, which is why mounting `/proc` inside the container does not mutate the host mount namespace. `chroot()` changes the visible filesystem root so the container’s `/` resolves inside its writable rootfs copy. Even with these boundaries, the kernel itself is still shared: all containers rely on the same host kernel scheduler, memory manager, and device model.
+Isolation is achieved through Linux namespaces and filesystem remapping. `CLONE_NEWPID` isolates process numbering inside the container, `CLONE_NEWUTS` isolates the hostname, and `CLONE_NEWNS` gives each container its own mount view. `chroot()` changes the visible root directory, while a container-local `/proc` mount provides process visibility inside that isolated filesystem view. Even with these boundaries, the host kernel is still shared by all containers.
 
-### 2. Supervisor and Process Lifecycle
+### 2. Supervisor and process lifecycle
 
-A long-running supervisor is useful because containers are not independent background shells in this design; they are managed processes with metadata, logs, and policy attached to them. The supervisor creates children with `clone()`, stores the host PID, tracks start time and memory limits, and handles cleanup when `SIGCHLD` arrives. This also keeps signal ownership consistent. A manual `stop` request marks `stop_requested` before sending termination so the runtime can later classify the exit as a user-initiated stop instead of a hard-limit kill.
+The supervisor is responsible for creating containers, tracking their metadata, reaping child processes, and coordinating shutdown. This prevents zombie accumulation and keeps all lifecycle decisions in one place. Marking `stop_requested` before signaling a container also lets the runtime distinguish manual stop from an external or kernel-forced kill.
 
-### 3. IPC, Threads, and Synchronization
+### 3. IPC, threads, and synchronization
 
-The project deliberately uses two IPC mechanisms. Control traffic moves over a UNIX domain socket because requests are structured, bidirectional, and short-lived. Log traffic uses per-container pipes because stdout and stderr are byte streams naturally represented as file descriptors. The shared bounded buffer needs a mutex and two condition variables: without the mutex, producers and consumers could corrupt the ring-buffer head/tail indices; without `not_full`, producers could busy-spin or overwrite entries; without `not_empty`, consumers would either spin wastefully or read invalid data. Metadata is synchronized separately so container state transitions do not race with `ps`, `stop`, or `run` waiters.
+The control plane and log plane are intentionally separate. CLI commands go through a UNIX domain socket because they need structured, short-lived request/response behavior. Logs use pipes because stdout and stderr are naturally byte streams. The bounded buffer uses a mutex plus condition variables so producers and consumers do not race on the ring-buffer indices and do not deadlock when the buffer is full or empty.
 
-### 4. Memory Management and Enforcement
+### 4. Memory management and enforcement
 
-RSS measures resident physical memory currently mapped into a process, not the total virtual address space and not memory that has been swapped out. That is why RSS is a useful signal for real pressure but not a complete description of a process’s memory footprint. Soft and hard limits represent different operating-system policies: a soft limit is a warning threshold that signals growing pressure, while a hard limit is an enforcement boundary that protects the system by terminating the offender. The enforcement belongs in kernel space because only the kernel has authoritative, race-resistant visibility into process memory accounting and the ability to act on a process even if user-space runtime components are delayed or compromised.
+RSS represents the resident physical memory currently mapped into a process. It does not describe total virtual address space and it does not include swapped-out pages. Soft and hard limits are different policies: the soft limit acts as an early warning, while the hard limit is an enforcement threshold. Keeping this enforcement in kernel space is more reliable because the kernel has authoritative visibility into process memory and can act immediately.
 
-### 5. Scheduling Behavior
+### 5. Scheduling behavior
 
-Linux’s scheduler tries to balance fairness with responsiveness. For CPU-bound tasks, lowering the nice value gives the task a stronger claim on CPU time, so under contention it should complete or make progress more quickly than a less favored CPU-bound peer. An I/O-heavy task, by contrast, often sleeps voluntarily and becomes runnable in short bursts, which tends to preserve responsiveness because the scheduler can run it promptly when it wakes. The runtime is useful as an experiment harness because it keeps the workloads isolated, logs their output, and makes it easy to vary one scheduling input at a time.
+The runtime can be used as a platform for observing how Linux schedules competing workloads. CPU-bound tasks contend for processor time directly, so priority changes such as `nice` affect progress under contention. By contrast, I/O-oriented tasks often sleep and wake in short bursts, which helps the scheduler preserve responsiveness. This project exposes those differences through isolated workloads and structured logging.
 
-## Scheduler Experiment Results
+## Report
 
-Fill this table after running the demo in the Ubuntu VM.
-
-| Experiment | Workloads | Configuration | Measurement | Observation |
-| --- | --- | --- | --- | --- |
-| EXP-01 | `cpu_hog` vs `cpu_hog` | `nice 0` vs `nice 10` | Wall time to completion / log progress rate | Higher-priority CPU container should make faster progress under contention |
-| EXP-02 | `cpu_hog` vs `io_pulse` | same priority | Responsiveness and interleaving of output | I/O-oriented work should remain responsive because it sleeps between bursts |
-
-## Test Cases
-
-See [`docs/TEST_CASES.md`](./docs/TEST_CASES.md) for the complete test matrix and screenshot mapping.
-
-## Expanded Report
-
-See [`REPORT.md`](./REPORT.md) for the longer submission report and final personalization checklist.
+See [`REPORT.md`](./REPORT.md) for the full written report and implementation summary.
